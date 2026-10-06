@@ -6,340 +6,336 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
-import android.speech.tts.UtteranceProgressListener;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class MainActivity extends Activity {
 
     private static final int REQUEST_RECORD_AUDIO = 1001;
+    private static final int MAX_HISTORY = 10;
 
     private EditText textBox;
     private Spinner languageSpinner;
     private SeekBar speedBar;
+
+    private Button speakButton;
+    private Button readButton;
+    private Button stopButton;
+
+    private TextView statusText;
+    private LinearLayout historyContainer;
 
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
 
     private boolean speechReady = false;
     private boolean listening = false;
+    private boolean processing = false;
 
-    private final String[] languages = {
+    private final String[] languageNames = {
             "English",
             "Sinhala",
             "Tamil"
     };
 
-    private final Locale[] locales = {
+    private final Locale[] languageLocales = {
             Locale.US,
             new Locale("si", "LK"),
             new Locale("ta", "LK")
     };
 
+    private SharedPreferences preferences;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        preferences = getSharedPreferences("saywrite_history", MODE_PRIVATE);
+
         buildUserInterface();
-
         setupTextToSpeech();
-
         setupSpeechRecognizer();
-
-        if (android.os.Build.VERSION.SDK_INT >= 23 &&
-                checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                        != PackageManager.PERMISSION_GRANTED) {
-
-            requestPermissions(
-                    new String[]{Manifest.permission.RECORD_AUDIO},
-                    REQUEST_RECORD_AUDIO
-            );
-        }
+        updateStatus("Ready", Color.rgb(46, 125, 50));
     }
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    private TextView makeText(String text, float size, int gravity) {
-
-        TextView tv = new TextView(this);
-        tv.setText(text);
-        tv.setTextSize(size);
-        tv.setTextColor(getColor(com.saywrite.app.R.color.text_dark));
-        tv.setGravity(gravity);
-
-        return tv;
+    private TextView makeText(String text, float size) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextSize(size);
+        view.setTextColor(Color.rgb(23, 32, 42));
+        return view;
     }
 
     private Button makeButton(String text) {
-
-        Button button = new Button(this);
-        button.setText(text);
-        button.setTextSize(15);
-        button.setAllCaps(false);
-        button.setTextColor(getColor(R.color.white));
-        button.setBackgroundResource(R.drawable.button_bg);
-
-        return button;
-    }
-
-    private Button makeSecondaryButton(String text) {
-
         Button button = new Button(this);
         button.setText(text);
         button.setTextSize(14);
         button.setAllCaps(false);
-        button.setTextColor(getColor(R.color.blue_dark));
-        button.setBackgroundResource(R.drawable.secondary_button_bg);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(50));
+
+        params.setMargins(0, dp(5), 0, dp(5));
+        button.setLayoutParams(params);
 
         return button;
     }
 
     private void buildUserInterface() {
 
-        ScrollView scrollView = new ScrollView(this);
-
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(18), dp(18), dp(24));
-        root.setBackgroundColor(getColor(R.color.background));
+        root.setPadding(dp(18), dp(16), dp(18), dp(16));
+        root.setBackgroundColor(Color.rgb(245, 247, 250));
 
-        scrollView.addView(root);
-
-        TextView title = makeText(
-                "🎙️  Say & Write",
-                28,
-                Gravity.CENTER
-        );
-
+        TextView title = makeText("Say & Write", 28);
+        title.setTextColor(Color.rgb(13, 71, 161));
+        title.setGravity(Gravity.CENTER);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
 
-        root.addView(
-                title,
+        root.addView(title,
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(60)
-                )
-        );
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(50)));
 
         TextView subtitle = makeText(
-                "Speak it. Write it. Listen to it.",
-                15,
-                Gravity.CENTER
-        );
+                "Speak, write, listen and share",
+                15);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setTextColor(Color.rgb(102, 112, 133));
 
-        subtitle.setTextColor(getColor(R.color.gray));
-
-        root.addView(
-                subtitle,
+        root.addView(subtitle,
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(40)
-                )
-        );
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(35)));
 
-        TextView languageLabel = makeText(
-                "Language",
-                15,
-                Gravity.START
-        );
+        statusText = makeText("Ready", 15);
+        statusText.setGravity(Gravity.CENTER);
+        statusText.setTypeface(null, android.graphics.Typeface.BOLD);
 
+        LinearLayout.LayoutParams statusParams =
+                new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(40));
+        statusParams.setMargins(0, dp(4), 0, dp(6));
+
+        root.addView(statusText, statusParams);
+
+        TextView languageLabel = makeText("Language", 15);
         languageLabel.setTypeface(null, android.graphics.Typeface.BOLD);
-
-        root.addView(
-                languageLabel,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(30)
-                )
-        );
+        root.addView(languageLabel);
 
         languageSpinner = new Spinner(this);
 
         ArrayAdapter<String> adapter =
                 new ArrayAdapter<>(
                         this,
-                        android.R.layout.simple_spinner_dropdown_item,
-                        languages
-                );
+                        android.R.layout.simple_spinner_item,
+                        languageNames);
+
+        adapter.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item);
 
         languageSpinner.setAdapter(adapter);
 
-        root.addView(
-                languageSpinner,
+        root.addView(languageSpinner,
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(50)
-                )
-        );
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(50)));
 
         textBox = new EditText(this);
-
-        textBox.setHint("Type something or tap SPEAK...");
-        textBox.setTextSize(18);
+        textBox.setHint("Write something or tap SPEAK...");
+        textBox.setTextSize(17);
         textBox.setGravity(Gravity.TOP | Gravity.START);
-        textBox.setMinLines(8);
-        textBox.setPadding(dp(16), dp(16), dp(16), dp(16));
-        textBox.setBackgroundResource(R.drawable.edit_text_bg);
-        textBox.setTextColor(getColor(R.color.text_dark));
-        textBox.setHintTextColor(getColor(R.color.gray));
-        textBox.setInputType(
-                android.text.InputType.TYPE_CLASS_TEXT |
-                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE |
-                android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-        );
+        textBox.setPadding(dp(12), dp(12), dp(12), dp(12));
+        textBox.setBackgroundColor(Color.WHITE);
+        textBox.setSingleLine(false);
+        textBox.setMinLines(6);
 
-        LinearLayout.LayoutParams editParams =
+        LinearLayout.LayoutParams textParams =
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(220)
-                );
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(150));
+        textParams.setMargins(0, dp(8), 0, dp(8));
 
-        editParams.setMargins(0, dp(14), 0, dp(12));
+        root.addView(textBox, textParams);
 
-        root.addView(textBox, editParams);
+        speakButton = makeButton("🎤 SPEAK");
+        readButton = makeButton("🔊 READ ALOUD");
+        stopButton = makeButton("⏹ STOP");
 
-        Button speakButton = makeButton("🎤  SPEAK");
+        root.addView(speakButton);
+        root.addView(readButton);
+        root.addView(stopButton);
 
-        LinearLayout.LayoutParams speakParams =
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(58)
-                );
-
-        speakParams.setMargins(0, 0, 0, dp(10));
-
-        root.addView(speakButton, speakParams);
-
-        speakButton.setOnClickListener(v -> startListening());
-
-        Button readButton = makeButton("🔊  READ ALOUD");
-
-        root.addView(
-                readButton,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(58)
-                )
-        );
-
-        readButton.setOnClickListener(v -> speakText());
-
-        Button stopButton = makeSecondaryButton("⏹  STOP");
-
-        LinearLayout.LayoutParams stopParams =
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(52)
-                );
-
-        stopParams.setMargins(0, dp(10), 0, dp(10));
-
-        root.addView(stopButton, stopParams);
-
-        stopButton.setOnClickListener(v -> stopEverything());
-
-        TextView speedLabel = makeText(
-                "Speech speed",
-                15,
-                Gravity.START
-        );
-
+        TextView speedLabel = makeText("Speech Speed", 15);
         speedLabel.setTypeface(null, android.graphics.Typeface.BOLD);
-
-        root.addView(
-                speedLabel,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(30)
-                )
-        );
+        root.addView(speedLabel);
 
         speedBar = new SeekBar(this);
-        speedBar.setMax(150);
-        speedBar.setProgress(50);
+        speedBar.setMax(20);
+        speedBar.setProgress(10);
 
-        root.addView(
-                speedBar,
+        root.addView(speedBar,
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(50)
-                )
-        );
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(45)));
 
-        LinearLayout actionRow =
-                new LinearLayout(this);
+        Button copyButton = makeButton("📋 COPY");
+        Button shareButton = makeButton("📤 SHARE");
+        Button clearButton = makeButton("🗑 CLEAR");
 
-        actionRow.setOrientation(LinearLayout.HORIZONTAL);
+        root.addView(copyButton);
+        root.addView(shareButton);
+        root.addView(clearButton);
 
-        Button copyButton = makeSecondaryButton("📋 Copy");
-        Button shareButton = makeSecondaryButton("📤 Share");
-        Button clearButton = makeSecondaryButton("🗑 Clear");
-
-        LinearLayout.LayoutParams actionParams =
-                new LinearLayout.LayoutParams(
-                        0,
-                        dp(52),
-                        1
-                );
-
-        actionParams.setMargins(dp(3), 0, dp(3), 0);
-
-        actionRow.addView(copyButton, actionParams);
-        actionRow.addView(shareButton, actionParams);
-        actionRow.addView(clearButton, actionParams);
-
-        root.addView(
-                actionRow,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(60)
-                )
-        );
-
-        copyButton.setOnClickListener(v -> copyText());
-        shareButton.setOnClickListener(v -> shareText());
-        clearButton.setOnClickListener(v -> textBox.setText(""));
-
-        TextView adPlaceholder = makeText(
-                "ADVERTISEMENT",
-                11,
-                Gravity.CENTER
-        );
-
-        adPlaceholder.setTextColor(getColor(R.color.gray));
+        TextView adText = makeText("ADVERTISEMENT", 12);
+        adText.setGravity(Gravity.CENTER);
+        adText.setTextColor(Color.rgb(150, 150, 150));
 
         LinearLayout.LayoutParams adParams =
                 new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(55)
-                );
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        dp(45));
+        adParams.setMargins(0, dp(8), 0, dp(8));
 
-        adParams.setMargins(0, dp(22), 0, 0);
+        root.addView(adText, adParams);
 
-        root.addView(adPlaceholder, adParams);
+        TextView historyTitle = makeText("🕘 Recent Texts", 18);
+        historyTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(historyTitle);
 
-        setContentView(scrollView);
+        historyContainer = new LinearLayout(this);
+        historyContainer.setOrientation(LinearLayout.VERTICAL);
+
+        root.addView(historyContainer);
+
+        Button clearHistoryButton = makeButton("🧹 Clear History");
+        root.addView(clearHistoryButton);
+
+        speakButton.setOnClickListener(v -> startListening());
+
+        readButton.setOnClickListener(v -> {
+            String text = textBox.getText().toString().trim();
+
+            if (text.isEmpty()) {
+                Toast.makeText(
+                        MainActivity.this,
+                        "Please enter some text first.",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            saveToHistory(text);
+            speakText(text);
+        });
+
+        stopButton.setOnClickListener(v -> stopEverything());
+
+        copyButton.setOnClickListener(v -> copyText());
+
+        shareButton.setOnClickListener(v -> shareText());
+
+        clearButton.setOnClickListener(v ->
+                textBox.setText(""));
+
+        clearHistoryButton.setOnClickListener(v -> {
+            preferences.edit().clear().apply();
+            loadHistory();
+            Toast.makeText(
+                    MainActivity.this,
+                    "History cleared",
+                    Toast.LENGTH_SHORT).show();
+        });
+
+        languageSpinner.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+
+                    @Override
+                    public void onItemSelected(
+                            android.widget.AdapterView<?> parent,
+                            View view,
+                            int position,
+                            long id) {
+
+                        setSpeechLanguage(position);
+                    }
+
+                    @Override
+                    public void onNothingSelected(
+                            android.widget.AdapterView<?> parent) {
+                    }
+                });
+
+        setContentView(root);
+
+        loadHistory();
+    }
+
+    private void updateStatus(String message, int color) {
+
+        if (statusText != null) {
+            statusText.setText(message);
+            statusText.setTextColor(color);
+        }
+    }
+
+    private void setButtonsForListening(boolean active) {
+
+        if (speakButton == null) return;
+
+        speakButton.setEnabled(!active);
+        readButton.setEnabled(!active);
+        stopButton.setEnabled(active);
+
+        if (active) {
+            speakButton.setText("🎤 LISTENING...");
+        } else {
+            speakButton.setText("🎤 SPEAK");
+        }
+    }
+
+    private void setButtonsForProcessing(boolean active) {
+
+        if (speakButton == null) return;
+
+        if (active) {
+            speakButton.setEnabled(false);
+            readButton.setEnabled(false);
+            stopButton.setEnabled(true);
+        } else {
+            speakButton.setEnabled(true);
+            readButton.setEnabled(true);
+            stopButton.setEnabled(false);
+        }
     }
 
     private void setupTextToSpeech() {
@@ -352,46 +348,42 @@ public class MainActivity extends Activity {
 
                         speechReady = true;
 
-                        setSpeechLanguage();
+                        int position = languageSpinner.getSelectedItemPosition();
+
+                        if (position >= 0 &&
+                                position < languageLocales.length) {
+
+                            textToSpeech.setLanguage(
+                                    languageLocales[position]);
+                        }
+
+                        updateStatus(
+                                "Ready",
+                                Color.rgb(46, 125, 50));
 
                     } else {
 
-                        Toast.makeText(
-                                this,
-                                "Text-to-Speech is not available.",
-                                Toast.LENGTH_LONG
-                        ).show();
-                    }
-                }
-        );
+                        speechReady = false;
 
-        textToSpeech.setOnUtteranceProgressListener(
-                new UtteranceProgressListener() {
-
-                    @Override
-                    public void onStart(String utteranceId) {
+                        updateStatus(
+                                "Text-to-speech unavailable",
+                                Color.rgb(198, 40, 40));
                     }
-
-                    @Override
-                    public void onDone(String utteranceId) {
-                    }
-
-                    @Override
-                    public void onError(String utteranceId) {
-                    }
-                }
-        );
+                });
     }
 
-    private void setSpeechLanguage() {
+    private void setSpeechLanguage(int position) {
 
-        if (!speechReady) {
+        if (textToSpeech == null || !speechReady) {
             return;
         }
 
-        int position = languageSpinner.getSelectedItemPosition();
+        if (position < 0 ||
+                position >= languageLocales.length) {
+            return;
+        }
 
-        Locale locale = locales[position];
+        Locale locale = languageLocales[position];
 
         int result = textToSpeech.setLanguage(locale);
 
@@ -400,11 +392,18 @@ public class MainActivity extends Activity {
 
             Toast.makeText(
                     this,
-                    "This voice is not installed. Android may use another available voice.",
-                    Toast.LENGTH_LONG
-            ).show();
+                    languageNames[position] +
+                            " voice data is not available.",
+                    Toast.LENGTH_LONG).show();
 
-            textToSpeech.setLanguage(Locale.US);
+            updateStatus(
+                    "Voice language unavailable",
+                    Color.rgb(198, 40, 40));
+        } else {
+
+            updateStatus(
+                    "Ready",
+                    Color.rgb(46, 125, 50));
         }
     }
 
@@ -412,11 +411,9 @@ public class MainActivity extends Activity {
 
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
 
-            Toast.makeText(
-                    this,
-                    "Speech recognition is not available on this phone.",
-                    Toast.LENGTH_LONG
-            ).show();
+            updateStatus(
+                    "Speech recognition unavailable",
+                    Color.rgb(198, 40, 40));
 
             return;
         }
@@ -430,17 +427,24 @@ public class MainActivity extends Activity {
                     @Override
                     public void onReadyForSpeech(Bundle params) {
 
+                        processing = false;
                         listening = true;
 
-                        Toast.makeText(
-                                MainActivity.this,
-                                "Listening...",
-                                Toast.LENGTH_SHORT
-                        ).show();
+                        updateStatus(
+                                "🔴 Listening...",
+                                Color.rgb(198, 40, 40));
+
+                        setButtonsForListening(true);
                     }
 
                     @Override
                     public void onBeginningOfSpeech() {
+
+                        listening = true;
+
+                        updateStatus(
+                                "🔴 Listening...",
+                                Color.rgb(198, 40, 40));
                     }
 
                     @Override
@@ -455,69 +459,115 @@ public class MainActivity extends Activity {
                     public void onEndOfSpeech() {
 
                         listening = false;
+                        processing = true;
+
+                        updateStatus(
+                                "⏳ Processing...",
+                                Color.rgb(245, 124, 0));
+
+                        setButtonsForProcessing(true);
                     }
 
                     @Override
                     public void onError(int error) {
 
                         listening = false;
+                        processing = false;
 
-                        String message = "Could not understand speech.";
+                        setButtonsForProcessing(false);
 
-                        if (error ==
-                                SpeechRecognizer.ERROR_NETWORK) {
+                        String message;
 
-                            message = "Network error.";
+                        switch (error) {
 
-                        } else if (error ==
-                                SpeechRecognizer.ERROR_NO_MATCH) {
+                            case SpeechRecognizer.ERROR_AUDIO:
+                                message = "Audio recording error";
+                                break;
 
-                            message = "No speech detected.";
+                            case SpeechRecognizer.ERROR_CLIENT:
+                                message = "Speech recognition stopped";
+                                break;
 
-                        } else if (error ==
-                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                            case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                                message = "Microphone permission required";
+                                break;
 
-                            message = "Microphone permission is required.";
+                            case SpeechRecognizer.ERROR_NETWORK:
+                                message = "Network error";
+                                break;
+
+                            case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                                message = "Network timeout";
+                                break;
+
+                            case SpeechRecognizer.ERROR_NO_MATCH:
+                                message = "No speech detected";
+                                break;
+
+                            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                                message = "Recognizer is busy";
+                                break;
+
+                            case SpeechRecognizer.ERROR_SERVER:
+                                message = "Recognition server error";
+                                break;
+
+                            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+                                message = "No speech detected";
+                                break;
+
+                            default:
+                                message = "Speech recognition error";
+                                break;
                         }
+
+                        updateStatus(
+                                message,
+                                Color.rgb(198, 40, 40));
 
                         Toast.makeText(
                                 MainActivity.this,
                                 message,
-                                Toast.LENGTH_SHORT
-                        ).show();
+                                Toast.LENGTH_SHORT).show();
+
+                        if (error != SpeechRecognizer.ERROR_CLIENT) {
+                            updateStatusDelayed();
+                        }
                     }
 
                     @Override
                     public void onResults(Bundle results) {
 
                         listening = false;
+                        processing = false;
 
                         ArrayList<String> matches =
                                 results.getStringArrayList(
-                                        SpeechRecognizer.RESULTS_RECOGNITION
-                                );
+                                        SpeechRecognizer.RESULTS_RECOGNITION);
 
                         if (matches != null &&
                                 !matches.isEmpty()) {
 
                             String result = matches.get(0);
 
-                            String oldText =
-                                    textBox.getText().toString().trim();
-
-                            if (oldText.isEmpty()) {
-
-                                textBox.setText(result);
-
-                            } else {
-
-                                textBox.append(" " + result);
-                            }
-
+                            textBox.setText(result);
                             textBox.setSelection(
-                                    textBox.length()
-                            );
+                                    textBox.length());
+
+                            saveToHistory(result);
+
+                            updateStatus(
+                                    "✓ Text received",
+                                    Color.rgb(46, 125, 50));
+
+                        } else {
+
+                            updateStatus(
+                                    "No speech detected",
+                                    Color.rgb(198, 40, 40));
                         }
+
+                        setButtonsForProcessing(false);
                     }
 
                     @Override
@@ -527,20 +577,33 @@ public class MainActivity extends Activity {
                     @Override
                     public void onEvent(int eventType, Bundle params) {
                     }
-                }
-        );
+                });
+    }
+
+    private void updateStatusDelayed() {
+
+        statusText.postDelayed(
+                () -> {
+
+                    if (!listening && !processing) {
+
+                        updateStatus(
+                                "Ready",
+                                Color.rgb(46, 125, 50));
+                    }
+
+                },
+                1800);
     }
 
     private void startListening() {
 
-        if (android.os.Build.VERSION.SDK_INT >= 23 &&
-                checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                        != PackageManager.PERMISSION_GRANTED) {
+        if (listening || processing) {
 
-            requestPermissions(
-                    new String[]{Manifest.permission.RECORD_AUDIO},
-                    REQUEST_RECORD_AUDIO
-            );
+            Toast.makeText(
+                    this,
+                    "Speech recognition is already running.",
+                    Toast.LENGTH_SHORT).show();
 
             return;
         }
@@ -550,18 +613,31 @@ public class MainActivity extends Activity {
             Toast.makeText(
                     this,
                     "Speech recognition is unavailable.",
-                    Toast.LENGTH_SHORT
-            ).show();
+                    Toast.LENGTH_LONG).show();
 
             return;
         }
 
-        if (listening) {
+        if (android.os.Build.VERSION.SDK_INT >= 23 &&
+                checkSelfPermission(
+                        Manifest.permission.RECORD_AUDIO)
+                        != PackageManager.PERMISSION_GRANTED) {
 
-            speechRecognizer.stopListening();
-            listening = false;
+            requestPermissions(
+                    new String[]{
+                            Manifest.permission.RECORD_AUDIO
+                    },
+                    REQUEST_RECORD_AUDIO);
 
             return;
+        }
+
+        int position =
+                languageSpinner.getSelectedItemPosition();
+
+        if (position < 0 ||
+                position >= languageLocales.length) {
+            position = 0;
         }
 
         Intent intent =
@@ -569,31 +645,31 @@ public class MainActivity extends Activity {
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-        );
-
-        int position =
-                languageSpinner.getSelectedItemPosition();
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE,
-                locales[position].toLanguageTag()
-        );
+                languageLocales[position].toLanguageTag());
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,
-                locales[position].toLanguageTag()
-        );
+                languageLocales[position].toLanguageTag());
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_MAX_RESULTS,
-                3
-        );
+                5);
 
         intent.putExtra(
                 RecognizerIntent.EXTRA_PARTIAL_RESULTS,
-                false
-        );
+                false);
+
+        listening = true;
+
+        updateStatus(
+                "🔴 Starting microphone...",
+                Color.rgb(198, 40, 40));
+
+        setButtonsForListening(true);
 
         try {
 
@@ -601,86 +677,112 @@ public class MainActivity extends Activity {
 
         } catch (Exception e) {
 
+            listening = false;
+            processing = false;
+
+            setButtonsForProcessing(false);
+
+            updateStatus(
+                    "Could not start microphone",
+                    Color.rgb(198, 40, 40));
+
             Toast.makeText(
                     this,
-                    "Unable to start microphone.",
-                    Toast.LENGTH_SHORT
-            ).show();
+                    "Could not start speech recognition.",
+                    Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void speakText() {
+    private void speakText(String text) {
 
-        if (!speechReady) {
-
-            Toast.makeText(
-                    this,
-                    "Text-to-Speech is still starting.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            return;
-        }
-
-        String text =
-                textBox.getText().toString().trim();
-
-        if (text.isEmpty()) {
+        if (!speechReady || textToSpeech == null) {
 
             Toast.makeText(
                     this,
-                    "Please enter some text first.",
-                    Toast.LENGTH_SHORT
-            ).show();
+                    "Text-to-speech is not ready.",
+                    Toast.LENGTH_SHORT).show();
 
             return;
         }
-
-        setSpeechLanguage();
 
         float speed =
-                0.5f +
-                ((float) speedBar.getProgress() / 100.0f);
+                0.5f + (speedBar.getProgress() / 10.0f);
 
         textToSpeech.setSpeechRate(speed);
 
-        textToSpeech.setPitch(1.0f);
+        int position =
+                languageSpinner.getSelectedItemPosition();
+
+        if (position >= 0 &&
+                position < languageLocales.length) {
+
+            textToSpeech.setLanguage(
+                    languageLocales[position]);
+        }
+
+        updateStatus(
+                "🔊 Reading aloud...",
+                Color.rgb(21, 101, 192));
 
         textToSpeech.speak(
                 text,
                 TextToSpeech.QUEUE_FLUSH,
                 null,
-                "say_write_utterance"
-        );
+                "saywrite");
+
+        statusText.postDelayed(
+                () -> {
+
+                    if (!listening && !processing) {
+
+                        updateStatus(
+                                "Ready",
+                                Color.rgb(46, 125, 50));
+                    }
+
+                },
+                1200);
     }
 
     private void stopEverything() {
 
         if (speechRecognizer != null) {
 
-            speechRecognizer.stopListening();
-
-            listening = false;
+            try {
+                speechRecognizer.stopListening();
+                speechRecognizer.cancel();
+            } catch (Exception ignored) {
+            }
         }
 
         if (textToSpeech != null) {
 
-            textToSpeech.stop();
+            try {
+                textToSpeech.stop();
+            } catch (Exception ignored) {
+            }
         }
+
+        listening = false;
+        processing = false;
+
+        setButtonsForProcessing(false);
+
+        updateStatus(
+                "Ready",
+                Color.rgb(46, 125, 50));
     }
 
     private void copyText() {
 
-        String text =
-                textBox.getText().toString();
+        String text = textBox.getText().toString();
 
         if (text.trim().isEmpty()) {
 
             Toast.makeText(
                     this,
                     "Nothing to copy.",
-                    Toast.LENGTH_SHORT
-            ).show();
+                    Toast.LENGTH_SHORT).show();
 
             return;
         }
@@ -689,32 +791,29 @@ public class MainActivity extends Activity {
                 (ClipboardManager)
                         getSystemService(Context.CLIPBOARD_SERVICE);
 
-        clipboard.setPrimaryClip(
+        ClipData clip =
                 ClipData.newPlainText(
                         "Say & Write",
-                        text
-                )
-        );
+                        text);
+
+        clipboard.setPrimaryClip(clip);
 
         Toast.makeText(
                 this,
-                "Copied.",
-                Toast.LENGTH_SHORT
-        ).show();
+                "Copied",
+                Toast.LENGTH_SHORT).show();
     }
 
     private void shareText() {
 
-        String text =
-                textBox.getText().toString();
+        String text = textBox.getText().toString();
 
         if (text.trim().isEmpty()) {
 
             Toast.makeText(
                     this,
                     "Nothing to share.",
-                    Toast.LENGTH_SHORT
-            ).show();
+                    Toast.LENGTH_SHORT).show();
 
             return;
         }
@@ -723,18 +822,246 @@ public class MainActivity extends Activity {
                 new Intent(Intent.ACTION_SEND);
 
         shareIntent.setType("text/plain");
-
         shareIntent.putExtra(
                 Intent.EXTRA_TEXT,
-                text
-        );
+                text);
 
         startActivity(
                 Intent.createChooser(
                         shareIntent,
-                        "Share text"
-                )
-        );
+                        "Share text"));
+    }
+
+    private void saveToHistory(String text) {
+
+        if (text == null) return;
+
+        text = text.trim();
+
+        if (text.isEmpty()) return;
+
+        List<String> history = getHistory();
+
+        history.remove(text);
+        history.add(0, text);
+
+        while (history.size() > MAX_HISTORY) {
+            history.remove(history.size() - 1);
+        }
+
+        Set<String> set = new HashSet<>(history);
+
+        preferences.edit()
+                .putStringSet("history", set)
+                .putString("order", joinHistory(history))
+                .apply();
+
+        loadHistory();
+    }
+
+    private List<String> getHistory() {
+
+        String order =
+                preferences.getString("order", "");
+
+        List<String> history =
+                new ArrayList<>();
+
+        if (!order.isEmpty()) {
+
+            String[] parts =
+                    order.split(
+                            "\\Q|||\\E",
+                            -1);
+
+            for (String item : parts) {
+
+                if (!item.trim().isEmpty()) {
+                    history.add(item);
+                }
+            }
+        }
+
+        return history;
+    }
+
+    private String joinHistory(List<String> history) {
+
+        StringBuilder builder =
+                new StringBuilder();
+
+        for (String item : history) {
+
+            if (builder.length() > 0) {
+                builder.append("|||");
+            }
+
+            builder.append(item);
+        }
+
+        return builder.toString();
+    }
+
+    private void loadHistory() {
+
+        if (historyContainer == null) return;
+
+        historyContainer.removeAllViews();
+
+        List<String> history = getHistory();
+
+        if (history.isEmpty()) {
+
+            TextView empty =
+                    makeText(
+                            "No recent texts yet.",
+                            14);
+
+            empty.setTextColor(
+                    Color.rgb(102, 112, 133));
+
+            empty.setPadding(
+                    0,
+                    dp(8),
+                    0,
+                    dp(8));
+
+            historyContainer.addView(empty);
+
+            return;
+        }
+
+        for (String text : history) {
+
+            addHistoryItem(text);
+        }
+    }
+
+    private void addHistoryItem(String text) {
+
+        LinearLayout row =
+                new LinearLayout(this);
+
+        row.setOrientation(
+                LinearLayout.HORIZONTAL);
+
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        row.setPadding(
+                dp(8),
+                dp(6),
+                dp(4),
+                dp(6));
+
+        TextView item =
+                makeText(text, 15);
+
+        item.setTextColor(
+                Color.rgb(23, 32, 42));
+
+        item.setMaxLines(3);
+
+        Button delete =
+                new Button(this);
+
+        delete.setText("✕");
+        delete.setTextSize(13);
+        delete.setAllCaps(false);
+
+        LinearLayout.LayoutParams textParams =
+                new LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1);
+
+        LinearLayout.LayoutParams deleteParams =
+                new LinearLayout.LayoutParams(
+                        dp(55),
+                        dp(48));
+
+        row.addView(item, textParams);
+        row.addView(delete, deleteParams);
+
+        item.setOnClickListener(v -> {
+
+            textBox.setText(text);
+            textBox.setSelection(
+                    textBox.length());
+
+            updateStatus(
+                    "Text restored",
+                    Color.rgb(21, 101, 192));
+        });
+
+        delete.setOnClickListener(v ->
+                deleteHistoryItem(text));
+
+        historyContainer.addView(row);
+    }
+
+    private void deleteHistoryItem(String text) {
+
+        List<String> history = getHistory();
+
+        history.remove(text);
+
+        if (history.isEmpty()) {
+
+            preferences.edit()
+                    .remove("history")
+                    .remove("order")
+                    .apply();
+
+        } else {
+
+            preferences.edit()
+                    .putStringSet(
+                            "history",
+                            new HashSet<>(history))
+                    .putString(
+                            "order",
+                            joinHistory(history))
+                    .apply();
+        }
+
+        loadHistory();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults) {
+
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults);
+
+        if (requestCode == REQUEST_RECORD_AUDIO) {
+
+            if (grantResults.length > 0 &&
+                    grantResults[0] ==
+                            PackageManager.PERMISSION_GRANTED) {
+
+                updateStatus(
+                        "Microphone ready",
+                        Color.rgb(46, 125, 50));
+
+                startListening();
+
+            } else {
+
+                updateStatus(
+                        "Microphone permission denied",
+                        Color.rgb(198, 40, 40));
+
+                Toast.makeText(
+                        this,
+                        "Microphone permission is required for SPEAK.",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     @Override
@@ -742,13 +1069,19 @@ public class MainActivity extends Activity {
 
         if (speechRecognizer != null) {
 
-            speechRecognizer.destroy();
+            try {
+                speechRecognizer.destroy();
+            } catch (Exception ignored) {
+            }
         }
 
         if (textToSpeech != null) {
 
-            textToSpeech.stop();
-            textToSpeech.shutdown();
+            try {
+                textToSpeech.stop();
+                textToSpeech.shutdown();
+            } catch (Exception ignored) {
+            }
         }
 
         super.onDestroy();
