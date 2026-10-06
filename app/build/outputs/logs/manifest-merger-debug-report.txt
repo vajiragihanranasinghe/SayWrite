@@ -1,0 +1,71 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:3:1-37:12
+INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:3:1-37:12
+INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:3:1-37:12
+INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:3:1-37:12
+	package
+		INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml
+	android:versionName
+		INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml
+	android:versionCode
+		INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:3:11-69
+uses-permission#android.permission.RECORD_AUDIO
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:5:5-70
+	android:name
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:5:22-68
+queries
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:7:5-15:15
+intent#action:name:android.speech.RecognitionService
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:8:9-10:18
+action#android.speech.RecognitionService
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:9:13-71
+	android:name
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:9:21-69
+intent#action:name:android.intent.action.TTS_SERVICE
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:12:9-14:18
+action#android.intent.action.TTS_SERVICE
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:13:13-71
+	android:name
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:13:21-69
+application
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:17:5-35:19
+INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:17:5-35:19
+	android:extractNativeLibs
+		INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml
+	android:supportsRtl
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:20:9-35
+	android:label
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:19:9-41
+	android:allowBackup
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:18:9-35
+	android:theme
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:21:9-40
+activity#com.saywrite.app.MainActivity
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:23:9-33:20
+	android:screenOrientation
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:25:13-49
+	android:exported
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:26:13-36
+	android:name
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:24:13-41
+intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:28:13-31:29
+action#android.intent.action.MAIN
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:29:17-68
+	android:name
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:29:25-66
+category#android.intent.category.LAUNCHER
+ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:30:17-76
+	android:name
+		ADDED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml:30:27-74
+uses-sdk
+INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml
+INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /data/data/com.termux/files/home/SayWrite/app/src/main/AndroidManifest.xml
